@@ -1,0 +1,73 @@
+name: Build & Deploy Backend
+
+on:
+  push:
+    branches: [main, development]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: ghcr.io/faexas31/squadup-backend
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.detect.outputs.environment }}
+      image_tag: ${{ steps.detect.outputs.image_tag }}
+    steps:
+      - name: Detect environment from branch
+        id: detect
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+            echo "image_tag=latest" >> $GITHUB_OUTPUT
+          else
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "image_tag=dev" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-push:
+    needs: setup
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ needs.setup.outputs.image_tag }}
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  deploy:
+    needs: [setup, build-and-push]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.setup.outputs.environment }}
+    steps:
+      - name: Deploy to VPS (${{ needs.setup.outputs.environment }})
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.VPS_DEPLOY_PATH }}
+            docker compose pull backend
+            docker compose up -d backend db redis
+            docker compose exec -T nginx nginx -s reload || true
+            docker image prune -f
+            docker compose ps

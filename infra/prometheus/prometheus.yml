@@ -1,0 +1,16 @@
+# =============================================================================
+#  Prometheus — Configuracion de scraping
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Metricas de Django (django-prometheus)
+  - job_name: "django"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:8000"]
+        labels:
+          service: "blitz-backend"

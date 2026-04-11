@@ -1,0 +1,8 @@
+*.env
+*.__pycache__
+*.pyc
+*.logs
+src/core/logs/django.log
+squapup-3ab7a-firebase-adminsdk-fbsvc-53c50f45a0
+squapup-3ab7a-firebase-adminsdk-fbsvc-53c50f45a0.json
+firebase-adminsdk-credentials.json
